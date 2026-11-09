@@ -1,0 +1,31 @@
+# NetworkPolicy is an ACL for pod traffic: deny by default, then permit exactly what is needed.
+# GKE Autopilot enforces it out of the box (Dataplane V2).
+#
+# Rule 1: nothing in this namespace accepts inbound traffic unless another rule allows it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# Rule 2: only pods labelled agent-client=true may reach the agent, and only on its port.
+# The chat UI carries that label. So does the throwaway load-test pod in K8S.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-agent-from-clients
+spec:
+  podSelector:
+    matchLabels: {app: plumbing-agent}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {agent-client: "true"}
+      ports:
+        - {protocol: TCP, port: 8080}
+# Not needed today, but worth knowing: `kubectl port-forward` and kubelet health probes arrive from the
+# node, not from a pod, and are not blocked by the deny rule. If you later add a GKE Gateway or
+# Ingress in front of the chat UI, add a rule that allows its load-balancer health-check ranges.

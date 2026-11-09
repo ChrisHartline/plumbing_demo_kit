@@ -1,0 +1,33 @@
+# The ONLY file you edit before deploying. `kubectl apply -k .` renders everything below with your values.
+# (Kustomize = templating without templates: the YAML stays valid on its own; this overlays the changes.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: plumbing
+
+resources:
+  - 00-namespace.yaml
+  - 10-serviceaccounts.yaml
+  - 20-agent.yaml
+  - 30-chat-ui.yaml
+  - 40-networkpolicy.yaml
+
+# 1) Where your images live. Replace YOUR_PROJECT_ID, and the region if you did not use us-central1.
+images:
+  - name: plumbing-agent-image
+    newName: us-central1-docker.pkg.dev/YOUR_PROJECT_ID/plumbing/agent
+    newTag: v1
+  - name: plumbing-chat-ui-image
+    newName: us-central1-docker.pkg.dev/YOUR_PROJECT_ID/plumbing/chat-ui
+    newTag: v1
+
+# 2) Settings for the chat UI. Changing a value here makes Kustomize emit a ConfigMap with a new name,
+#    which rolls the Deployment automatically. (Edit a ConfigMap by hand and nothing restarts.)
+configMapGenerator:
+  - name: chat-ui-config
+    literals:
+      - GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
+      - VERTEX_LOCATION=global
+      # Dropdown choices. Confirm the exact IDs in Vertex AI Model Garden for your project.
+      # IDs starting with "claude" use the Anthropic SDK; anything else uses the Google GenAI SDK.
+      - VERTEX_MODELS=claude-haiku-4-5@20251001,gemini-2.5-flash

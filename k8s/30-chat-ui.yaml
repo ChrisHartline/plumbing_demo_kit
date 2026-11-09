@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-chat-ui
+  labels: {app: plumbing-chat-ui}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: plumbing-chat-ui}
+  template:
+    metadata:
+      labels:
+        app: plumbing-chat-ui
+        agent-client: "true"       # the label the NetworkPolicy checks before letting you reach the agent
+    spec:
+      serviceAccountName: chat-ui  # <- the identity that holds roles/aiplatform.user (K8S.md step 3)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001           # matches chat-ui/Dockerfile
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: chat-ui
+          image: plumbing-chat-ui-image            # replaced by kustomization.yaml `images:`
+          ports:
+            - {name: http, containerPort: 8000}
+          envFrom:
+            - configMapRef: {name: chat-ui-config} # project, location, model list: see kustomization.yaml
+          env:
+            - {name: AGENT_URL, value: "http://plumbing-agent"}   # the Service name from 20-agent.yaml
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+# ClusterIP on purpose. This UI can spend Vertex AI credits, so it must not have a public address
+# until someone puts authentication in front of it (see K8S.md, "Sharing it").
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumbing-chat-ui
+  labels: {app: plumbing-chat-ui}
+spec:
+  type: ClusterIP
+  selector: {app: plumbing-chat-ui}
+  ports:
+    - {name: http, port: 80, targetPort: http}

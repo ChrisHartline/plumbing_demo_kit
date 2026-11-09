@@ -1,0 +1,87 @@
+# The plumbing agent: the SAME image that runs on Cloud Run (built from deploy/), now scheduled by Kubernetes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-agent
+  labels: {app: plumbing-agent}
+spec:
+  replicas: 2                      # HPA below takes over once it is running
+  selector:
+    matchLabels: {app: plumbing-agent}
+  template:
+    metadata:
+      labels: {app: plumbing-agent}
+    spec:
+      serviceAccountName: plumbing-agent
+      securityContext:
+        runAsNonRoot: true
+        # deploy/Dockerfile creates "appuser" by name. Kubernetes can only prove "non-root" from a
+        # number, and the first useradd on Debian/Ubuntu images is UID 1000.
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: agent
+          image: plumbing-agent-image            # replaced by kustomization.yaml `images:`
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: PORT, value: "8080"}        # the Dockerfile CMD reads $PORT (Cloud Run sets it for you)
+            - {name: ANTHROPIC_MODEL, value: claude-haiku-4-5-20251001}
+            - {name: ANTHROPIC_MAX_RETRIES, value: "2"}   # set "0" to see raw upstream 429s in the load test
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef: {name: anthropic-api-key, key: ANTHROPIC_API_KEY}
+            # main.py reports $K_REVISION as "revision". Cloud Run sets it; here the pod name stands in,
+            # so loadtest.py's "Served by revision(s)" line shows which replicas took traffic.
+            - name: K_REVISION
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+          # Readiness = "send me traffic" (the health monitor on a load-balancer pool member).
+          # Liveness  = "restart me" (a watchdog). They answer different questions; don't merge them.
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            # GKE Autopilot bills on requests. Idle footprint measured at ~125 MiB after import, so 512Mi
+            # leaves room for a full thread pool of in-flight requests. Confirm with `kubectl top pod`.
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+# A Service is a stable virtual IP + DNS name (plumbing-agent.plumbing.svc) in front of whichever pods
+# are Ready, like a VIP in front of a pool. Pods come and go; callers use the name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumbing-agent
+  labels: {app: plumbing-agent}
+spec:
+  type: ClusterIP                  # internal only: there is no public address to abuse
+  selector: {app: plumbing-agent}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+# Horizontal Pod Autoscaler: Cloud Run's --min-instances / --max-instances, as a policy object.
+# HONEST CAVEAT: this agent spends its time WAITING on the model, not computing. CPU stays low while
+# requests pile up, so a CPU target reacts late. The better signal is in-flight requests or queue depth,
+# which is what KEDA scales on (the scale-to-zero project in the AI Infra plan).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: plumbing-agent
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: plumbing-agent}
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 60}

@@ -1,0 +1,14 @@
+# A namespace is a VRF for your workloads: names, quotas and policies are scoped to it.
+#
+# Pod Security: both Deployments in this folder already meet the strict "restricted" profile (non-root,
+# no privilege escalation, all capabilities dropped, default seccomp). We only WARN on violations rather
+# than reject them, so the throwaway `kubectl run` load-test pod in K8S.md (which runs as root) still starts.
+# For anything real, change `warn` to `enforce`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plumbing
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
