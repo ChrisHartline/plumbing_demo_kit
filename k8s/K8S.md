@@ -88,11 +88,13 @@ That member string reads: *"the Kubernetes service account `chat-ui` in namespac
 
 > **Networking analogy:** a shared Anthropic API key is a pre-shared key on a Wi-Fi network: whoever has the string is in. Workload Identity is 802.1X with certificates: each pod proves *who it is*, and there's nothing to leak, rotate, or paste into a chat window.
 
-**For the Claude choice in the dropdown:** open **Vertex AI ▸ Model Garden**, find the Claude model, and click **Enable**. This is a one-time project-level step that the IAM role doesn't cover. Gemini needs no enablement.
+**For the Claude choice in the dropdown:** open **Vertex AI ▸ Model Garden**, find the Claude model, and click **Enable**. This is a one-time project-level step that the IAM role doesn't cover. Then check quota: in **IAM & Admin ▸ Quotas**, search `anthropic-claude-haiku-4-5`. New projects often start at zero, and every Claude call returns `429 Quota exceeded` until the request is approved. Ask for it days before class.
+
+Gemini needs no enablement, but Google retires model IDs. `gemini-2.5-flash` now returns 404; the kit uses `gemini-3.1-flash-lite`.
 
 ## 4 · Point the manifests at your project, then deploy
 
-Edit **`k8s/kustomization.yaml`**: replace `YOUR_PROJECT_ID` in three places (two image names, one `GOOGLE_CLOUD_PROJECT`). Change `us-central1` if you used another region.
+Edit **`k8s/kustomization.yaml`**: replace the instructor's project ID `ai-infra-lab-508921` with yours in three places (two image names, one `GOOGLE_CLOUD_PROJECT`). Change `us-central1` if you used another region.
 
 ```bash
 kubectl apply -k k8s/                     # preview first with: kubectl kustomize k8s/
@@ -110,6 +112,8 @@ kubectl -n plumbing port-forward svc/plumbing-chat-ui 8000:80
 ```
 
 In Cloud Shell: **Web Preview ▸ Preview on port 8000**. (That preview URL only works for your own Google login.)
+
+On your own machine, port 8000 is often taken already (WSL and Docker Desktop both like it), and `localhost:8000` then answers `{"detail":"Not Found"}` from some other app. Pick another local port, for example `8088:80`, and open `http://127.0.0.1:8088`. The port-forward follows one pod, so restart it after the chat UI rolls out again.
 
 - **Plumbing agent (in cluster):** the browser talks to `chat-ui`, which calls the agent Service by name. The footer of each reply shows which **agent pod** answered.
 - **A Vertex AI model:** pick Claude or Gemini from the dropdown. Same UI, but the call goes straight to Vertex AI with the pod's identity.
@@ -178,7 +182,8 @@ gcloud projects remove-iam-policy-binding $PROJECT_ID --role=roles/aiplatform.us
 - **`ImagePullBackOff`:** the cluster's node service account can't read Artifact Registry. Grant it `roles/artifactregistry.reader` (the node SA is usually the default compute SA: `${PROJECT_NUMBER}-compute@developer.gserviceaccount.com`). Confirm with `kubectl -n plumbing describe pod <name>`.
 - **`CreateContainerConfigError` on the agent:** the `anthropic-api-key` Secret doesn't exist yet. Redo step 2; the pod retries on its own.
 - **Chat UI shows `Vertex AI call failed: ... 403`:** the IAM binding in step 3 is missing or has a typo in the namespace or service account name. Allow a minute for IAM to propagate.
-- **`... 404 ... model not found`** (Claude): you haven't enabled it in Model Garden, or the model ID or `VERTEX_LOCATION` isn't available to your project. Fix `VERTEX_MODELS` / `VERTEX_LOCATION` in `kustomization.yaml` and re-run `kubectl apply -k k8s/`.
+- **`... 404 ... model not found`**: for Claude, you haven't enabled it in Model Garden. For Gemini, the ID has usually been retired. Either way, the model ID or `VERTEX_LOCATION` isn't available to your project. Fix `VERTEX_MODELS` / `VERTEX_LOCATION` in `kustomization.yaml` and re-run `kubectl apply -k k8s/`.
+- **`429 Quota exceeded ... base model: anthropic-claude-haiku-4-5`**: identity and enablement worked; the project's Claude quota is zero or used up. Request more under **IAM & Admin ▸ Quotas**. Gemini keeps working in the meantime.
 - **Pods `Pending` for minutes:** Autopilot is provisioning. `kubectl -n plumbing describe pod <name>` shows events if it's something else (quota, for example).
 - **`401`/`403` using `loadtest.py` from your own terminal:** inside the cluster there is no token. Don't pass `--token` to the in-cluster run.
 

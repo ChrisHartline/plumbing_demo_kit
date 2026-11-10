@@ -11,4 +11,4 @@
 - The runtime secret is `anthropic-api-key`, attached as `ANTHROPIC_API_KEY=anthropic-api-key:latest`, with `ANTHROPIC_MODEL=claude-haiku-4-5-20251001` and `ANTHROPIC_MAX_RETRIES=0`.
 - GKE notes are `k8s/K8S.md`: Autopilot cluster and Artifact Registry repo both named `plumbing`, chat UI reached by port-forward and left `ClusterIP` on purpose. Local steps are `HOWTO-deploy-from-cursor.md` and are bash (WSL or Git Bash on this machine). `README.md` is the four-way map.
 - The Cloud Run image is in Artifact Registry repo `cloud-run-source-deploy` (`plumbing-agent`). The GKE script builds a separate `plumbing` repo (`agent:v1`, `chat-ui:v1`). Agent pods read a Kubernetes copy of `anthropic-api-key`; `chat-ui` calls Vertex AI as its own service account and does not use that key.
-- PowerShell handouts for the Cloud Run path are `deploy/commands.md` and `deploy/powershell.md`.
+- Cloud Run steps for Cloud Shell and Windows PowerShell both live in `deploy/DEPLOY.md`.

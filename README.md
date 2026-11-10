@@ -18,5 +18,5 @@ cd chat-ui && pip install -r requirements.txt
 gcloud auth application-default login
 export GOOGLE_CLOUD_PROJECT=your-project-id
 export AGENT_URL=http://localhost:8080      # optional: run deploy/ locally for the "agent" target
-uvicorn app:app --port 8000                 # then open http://localhost:8000
+uvicorn app:app --port 8088                 # then open http://127.0.0.1:8088 (8000 is often taken by WSL/Docker)
 ```

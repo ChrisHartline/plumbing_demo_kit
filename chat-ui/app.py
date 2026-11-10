@@ -38,7 +38,7 @@ PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 LOCATION = os.getenv("VERTEX_LOCATION", "global")
 AGENT_URL = os.getenv("AGENT_URL", "http://plumbing-agent").rstrip("/")
 MODELS = [m.strip() for m in os.getenv(
-    "VERTEX_MODELS", "claude-haiku-4-5@20251001,gemini-2.5-flash").split(",") if m.strip()]
+    "VERTEX_MODELS", "claude-haiku-4-5@20251001,gemini-3.1-flash-lite").split(",") if m.strip()]
 POD = os.getenv("HOSTNAME", "local")
 
 SYSTEM = "You are a concise, friendly assistant. Keep answers under 150 words."

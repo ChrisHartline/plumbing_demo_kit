@@ -12,13 +12,14 @@ resources:
   - 30-chat-ui.yaml
   - 40-networkpolicy.yaml
 
-# 1) Where your images live. Replace YOUR_PROJECT_ID, and the region if you did not use us-central1.
+# 1) Where your images live. Replace ai-infra-lab-508921 with your project ID here (two image paths)
+#    and in GOOGLE_CLOUD_PROJECT below. Change us-central1 if you used another region.
 images:
   - name: plumbing-agent-image
-    newName: us-central1-docker.pkg.dev/YOUR_PROJECT_ID/plumbing/agent
+    newName: us-central1-docker.pkg.dev/ai-infra-lab-508921/plumbing/agent
     newTag: v1
   - name: plumbing-chat-ui-image
-    newName: us-central1-docker.pkg.dev/YOUR_PROJECT_ID/plumbing/chat-ui
+    newName: us-central1-docker.pkg.dev/ai-infra-lab-508921/plumbing/chat-ui
     newTag: v1
 
 # 2) Settings for the chat UI. Changing a value here makes Kustomize emit a ConfigMap with a new name,
@@ -26,8 +27,9 @@ images:
 configMapGenerator:
   - name: chat-ui-config
     literals:
-      - GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
+      - GOOGLE_CLOUD_PROJECT=ai-infra-lab-508921
       - VERTEX_LOCATION=global
-      # Dropdown choices. Confirm the exact IDs in Vertex AI Model Garden for your project.
+      # Dropdown choices. Confirm the exact IDs in Vertex AI Model Garden for your project. Google retires
+      # Gemini IDs (gemini-2.5-flash now returns 404), so a 404 usually means the ID is out of date.
       # IDs starting with "claude" use the Anthropic SDK; anything else uses the Google GenAI SDK.
-      - VERTEX_MODELS=claude-haiku-4-5@20251001,gemini-2.5-flash
+      - VERTEX_MODELS=claude-haiku-4-5@20251001,gemini-3.1-flash-lite
